@@ -10,7 +10,7 @@ interface Resume {
   phone: string | null;
   email: string | null;
   education: string;
-  experience: string | null;
+  experience: number | null;
   skills: string[];
   projects: string[];
 }
@@ -70,9 +70,9 @@ async function parseEmail(resume: Express.Multer.File): Promise<string | null> {
   return match ? match[0] : null;
 }
 
-async function parseExperience(
+export async function parseExperience(
   resume: Express.Multer.File
-): Promise<string | null> {
+): Promise<number | null> {
   // Regex to isolate text between 'Experience' and the next heading
   const experienceRegex =
     /Experience\s*\n([\s\S]*?)(?=\n(?:Projects|Education|Technical Skills|Skills|Certifications|Summary)|$)/i;
@@ -80,15 +80,33 @@ async function parseExperience(
   const dataBuffer = fs.readFileSync(resume.path);
   const data = await pdf(dataBuffer);
   const text = data.text.replace(/\r\n/g, "\n");
+  let exp = 0;
 
   const match = text.match(experienceRegex);
+
   if (match) {
     const doc = nlp(match[0]) as any;
     const dates = doc.dates().json();
-    console.log(dates);
-  }
 
-  return match ? match[1] : null; // Return just the contents
+    console.log("Extracted Dates:", dates);
+
+    dates.forEach((date: any) => {
+      try {
+        const start = new Date(date.dates.start).getTime();
+        const end = new Date(date.dates.end).getTime();
+        exp += end - start;
+      } catch (err) {
+        console.warn("Invalid date object:", date);
+      }
+    });
+
+    const msInMonth = 1000 * 60 * 60 * 24 * 30;
+    const months = exp / msInMonth;
+    const years = months / 12;
+    console.log(`Estimated experience duration: ~${months.toFixed(1)} months`);
+    return Math.round(years);
+  }
+  return 0;
 }
 
 function parseSkills(resume: Express.Multer.File): string[] {
