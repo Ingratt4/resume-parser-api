@@ -1,0 +1,103 @@
+import pdf from "pdf-parse";
+import fs from "fs";
+import nlp from "compromise";
+import nlpDates from "compromise-dates";
+
+nlp.extend(nlpDates);
+
+interface Resume {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  education: string;
+  experience: string | null;
+  skills: string[];
+  projects: string[];
+}
+
+export async function parseResume(
+  resume: Express.Multer.File
+): Promise<Resume> {
+  const parsedResume: Resume = {
+    name: await parseName(resume),
+    phone: await parsePhone(resume),
+    email: await parseEmail(resume),
+    education: parseEducation(resume),
+    experience: await parseExperience(resume),
+    skills: parseSkills(resume),
+    projects: parseProjects(resume),
+  };
+
+  return parsedResume;
+}
+
+async function parseName(resume: Express.Multer.File): Promise<string | null> {
+  // do stuff
+  const dataBuffer = fs.readFileSync(resume.path);
+
+  const data = await pdf(dataBuffer);
+  const text = data.text;
+  let name = nlp(text).people().out("array");
+
+  return name[0];
+}
+function parseEducation(resume: Express.Multer.File): string {
+  const education = "";
+  // do stuff
+  return education;
+}
+async function parsePhone(resume: Express.Multer.File): Promise<string | null> {
+  const phoneRegex = /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/;
+
+  const dataBuffer = fs.readFileSync(resume.path);
+
+  const data = await pdf(dataBuffer);
+  const text = data.text;
+  const match = text.match(phoneRegex);
+
+  return match ? match[0] : null;
+}
+
+async function parseEmail(resume: Express.Multer.File): Promise<string | null> {
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+  const dataBuffer = fs.readFileSync(resume.path);
+
+  const data = await pdf(dataBuffer);
+  const text = data.text;
+
+  const match = text.match(emailRegex)?.toString();
+
+  return match ? match[0] : null;
+}
+
+async function parseExperience(
+  resume: Express.Multer.File
+): Promise<string | null> {
+  // Regex to isolate text between 'Experience' and the next heading
+  const experienceRegex =
+    /Experience\s*\n([\s\S]*?)(?=\n(?:Projects|Education|Technical Skills|Skills|Certifications|Summary)|$)/i;
+
+  const dataBuffer = fs.readFileSync(resume.path);
+  const data = await pdf(dataBuffer);
+  const text = data.text.replace(/\r\n/g, "\n");
+
+  const match = text.match(experienceRegex);
+  if (match) {
+    const doc = nlp(match[0]) as any;
+    const dates = doc.dates().json();
+    console.log(dates);
+  }
+
+  return match ? match[1] : null; // Return just the contents
+}
+
+function parseSkills(resume: Express.Multer.File): string[] {
+  const skills = ["empty"];
+  return skills;
+}
+function parseProjects(resume: Express.Multer.File): string[] {
+  const projects = ["empty"];
+  return projects;
+}
+
+export default parseResume;
