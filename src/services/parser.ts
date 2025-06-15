@@ -65,7 +65,7 @@ async function parseEmail(resume: Express.Multer.File): Promise<string | null> {
   const data = await pdf(dataBuffer);
   const text = data.text;
 
-  const match = text.match(emailRegex)?.toString();
+  const match = text.match(emailRegex);
 
   return match ? match[0] : null;
 }
