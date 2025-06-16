@@ -5,11 +5,18 @@ import nlpDates from "compromise-dates";
 
 nlp.extend(nlpDates);
 
+type EducationEntry = {
+  school: string;
+  degree?: string;
+  major?: string;
+  graduationDate?: string;
+};
+
 interface Resume {
   name: string | null;
   phone: string | null;
   email: string | null;
-  education: string;
+  education: EducationEntry[];
   experience: number | null;
   skills: string[];
   projects: string[];
@@ -22,7 +29,7 @@ export async function parseResume(
     name: await parseName(resume),
     phone: await parsePhone(resume),
     email: await parseEmail(resume),
-    education: parseEducation(resume),
+    education: await parseEducation(resume),
     experience: await parseExperience(resume),
     skills: parseSkills(resume),
     projects: parseProjects(resume),
@@ -41,11 +48,55 @@ async function parseName(resume: Express.Multer.File): Promise<string | null> {
 
   return name[0];
 }
-function parseEducation(resume: Express.Multer.File): string {
-  const education = "";
-  // do stuff
-  return education;
+async function parseEducation(
+  resume: Express.Multer.File
+): Promise<EducationEntry[]> {
+  const educationRegex =
+    /Education\s*\n([\s\S]*?)(?=\b(?:Experience|Projects|Education|Technical Skills|Skills|Certifications|Summary)\b|$)/i;
+
+  const dataBuffer = fs.readFileSync(resume.path);
+  const data = await pdf(dataBuffer);
+  const text = data.text.replace(/\r\n/g, "\n");
+
+  const match = text.match(educationRegex);
+  const educationSection = match?.[1];
+
+  console.log("Matched Education Text:", educationSection || "No match");
+
+  if (!educationSection) return [];
+
+  // Fallback regex to extract school name (more constrained)
+  const schoolMatch = educationSection.match(
+    /(University|College|Institute|School)\s(?:of\s)?[A-Z][a-z]+(?:\s[A-Z][a-z]+)?/g
+  );
+  const degreeMatch = educationSection.match(
+    /\b(Bachelor|Master|Ph\.?D\.?|B\.Sc\.|M\.Sc\.|BA|MA)[^,\n]*/i
+  );
+  const degree = degreeMatch?.[0].trim();
+  const majorMatch = educationSection.match(/in\s([A-Z][a-zA-Z\s&]+)/i);
+  const major = majorMatch?.[1].trim();
+  const gradMatch = educationSection.match(
+    /\b(Fall|Winter|Spring|Summer)?\s?(20\d{2})\b/i
+  );
+  const graduationDate = gradMatch ? gradMatch[0].trim() : undefined;
+
+  console.log("Extracted School Name(s):", schoolMatch);
+
+  if (schoolMatch && schoolMatch.length > 0) {
+    const cleanedSchool = schoolMatch[0].replace(/([A-Za-z]+)\1/, "$1").trim();
+    return [
+      {
+        school: cleanedSchool,
+        degree,
+        major,
+        graduationDate,
+      },
+    ];
+  }
+
+  return [];
 }
+
 async function parsePhone(resume: Express.Multer.File): Promise<string | null> {
   const phoneRegex = /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/;
 
